@@ -25,6 +25,12 @@ https://www.figma.com/design/Tau4gBUUCKmZqDGbExeA94/MindMate?node-id=0-1&p=f&t=s
 
 ---
 
+## Kredensial Login Default (bisa diubah di profile edit)
+email: johndoe@email.com
+password: 123
+
+---
+
 ## 🌟 Fitur Utama
 
 | Route | Halaman | Jenis | Deskripsi |
