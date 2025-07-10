@@ -18,7 +18,7 @@ Aplikasi ini ditujukan untuk individu usia 15–30 tahun seperti:
 ---
 
 ## 🔗 Live Website
-https://mindmate-pwa.vercel.app
+https://mind-mate-fe.vercel.app/ 
 
 ## 🎨 Figma Design
 https://www.figma.com/design/Tau4gBUUCKmZqDGbExeA94/MindMate?node-id=0-1&p=f&t=srnXpbXZJLYEU5ra-0
@@ -81,10 +81,12 @@ https://www.figma.com/design/Tau4gBUUCKmZqDGbExeA94/MindMate?node-id=0-1&p=f&t=s
 
 ---
 
-## 📅 Daily Progress
-1. **Day 1** – Setup proyek SolidJS + Tailwind + Routing, landing page
-2. **Day 2** – Integrasi Firebase Auth, halaman login/register, dashboard & mood tracker
-3. **Day 3** – Fitur jurnal, statistik AmCharts, serta desain mobile responsive
+## 📅 Website-Build Progress
+1. Selasa, 24 Juni 2025 - Menentukan ide website dan mencari referensi
+2. Rabu, 25 Juni 2025 - Merancang desain UI/UX di Figma
+3. Kamis, 26 Juni s/d Rabu, 2 Juli 2025 - Merancang front-end di Visual Studio Code
+4. Kamis, 3 Juli 2025 s/d Senin 7 Juli 2025 - Menambah page (mendesain page tambahan di Figma)
+5. Selasa, 8 Juli 2025 s/d Kamis 10 Juli 2025 - Finalisasi front-end di Visual Studio Code
 
 ---
 
