@@ -20,7 +20,6 @@ const App: Component<AppProps> = (props) => {
     "/activity-suggestions",
     "/help",
     "/contact-psychologist",
-    "/community",
     "/privacy",
   ];
   const mainNavbarRoutes = [
