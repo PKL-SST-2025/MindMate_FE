@@ -1,12 +1,12 @@
 import { Component, createSignal, createEffect, onMount, onCleanup } from "solid-js";
-import { useNavigate } from "@solidjs/router";
+import { useNavigate, useLocation } from "@solidjs/router";
 import * as am5 from "@amcharts/amcharts5";
 import * as am5xy from "@amcharts/amcharts5/xy";
 import * as am5themes_Animated from "@amcharts/amcharts5/themes/Animated";
 
-const API_URL_MOODS = "http://127.0.0.1:8080/api/moods";
-const API_URL_JOURNALS = "http://127.0.0.1:8080/api/journals";
-const API_URL_PROFILE = "http://127.0.0.1:8080/api/user/profile";
+const API_URL_MOODS = "https://mindmate-be-production.up.railway.app/api/moods";
+const API_URL_JOURNALS = "https://mindmate-be-production.up.railway.app/api/journals";
+const API_URL_PROFILE = "https://mindmate-be-production.up.railway.app/api/user/profile";
 
 type MoodEntry = {
   id: number;
@@ -21,6 +21,7 @@ type JournalEntry = {
   title: string;
   content: string;
   created_at: string;
+  date?: string; // Optional field if backend supports separate journal date
 };
 
 type UserProfile = {
@@ -114,6 +115,7 @@ const dailyQuotes = [
 
 const Dashboard: Component = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentTime, setCurrentTime] = createSignal(new Date());
   const [todayMood, setTodayMood] = createSignal<MoodEntry | null>(null);
   const [isLoadingMood, setIsLoadingMood] = createSignal(false);
@@ -126,9 +128,45 @@ const Dashboard: Component = () => {
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [user, setUser] = createSignal<UserProfile | null>(null);
+  const [tokenProcessed, setTokenProcessed] = createSignal(false);
   
   let chartDiv: HTMLDivElement | undefined;
   let intervalId: number | undefined;
+
+  // Handle token dari URL parameter (hasil redirect Google OAuth)
+  onMount(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const token = urlParams.get("token");
+    const welcome = urlParams.get("welcome");
+    
+    if (token) {
+      console.log("Token received from OAuth callback:", token.substring(0, 20) + "...");
+      // Simpan token ke localStorage
+      localStorage.setItem("token", token);
+      
+      // Clean up URL tanpa reload page
+      const cleanUrl = welcome === "1" 
+        ? "/dashboard?welcome=1" 
+        : "/dashboard";
+      window.history.replaceState({}, document.title, cleanUrl);
+      
+      // Mark token as processed
+      setTokenProcessed(true);
+      console.log("Token saved to localStorage and URL cleaned up");
+    } else {
+      // Cek apakah ada token di localStorage
+      const storedToken = localStorage.getItem("token");
+      if (!storedToken) {
+        console.log("No token found, redirecting to login");
+        // Redirect ke login jika tidak ada token
+        navigate("/login");
+        return;
+      } else {
+        console.log("Token found in localStorage");
+        setTokenProcessed(true);
+      }
+    }
+  });
 
   // Helper function to get Monday of current week
   const getMondayOfCurrentWeek = (date: Date = new Date()) => {
@@ -186,14 +224,24 @@ const Dashboard: Component = () => {
     }, 1000);
   });
 
-  // Fetch data from backend
+  // Fetch data from backend - ONLY run after token is processed
   createEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Belum login. Silakan login ulang.");
-      setLoading(false);
+    // Wait for token to be processed first
+    if (!tokenProcessed()) {
+      console.log("Token not processed yet, waiting...");
       return;
     }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.log("No token found after processing, redirecting to login");
+      setError("Belum login. Silakan login ulang.");
+      setLoading(false);
+      navigate("/login");
+      return;
+    }
+
+    console.log("Starting data fetch with token:", token.substring(0, 20) + "...");
 
     // Fetch user profile data
     fetch(API_URL_PROFILE, {
@@ -204,13 +252,28 @@ const Dashboard: Component = () => {
       }
     })
     .then(async (res) => {
-      if (!res.ok) throw new Error("Failed to fetch user profile");
+      if (!res.ok) {
+        console.log("Profile fetch failed with status:", res.status);
+        if (res.status === 401) {
+          console.log("Token expired or invalid, clearing storage and redirecting");
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          navigate("/login");
+          return;
+        }
+        throw new Error("Failed to fetch user profile");
+      }
       return res.json();
     })
     .then((data) => {
-      setUser(data);
+      if (data) {
+        console.log("User profile loaded:", data.username);
+        setUser(data);
+        localStorage.setItem("user", JSON.stringify(data));
+      }
     })
-    .catch(() => {
+    .catch((err) => {
+      console.error("Failed to fetch user profile:", err);
       setError("Gagal mengambil data user.");
     });
 
@@ -223,25 +286,39 @@ const Dashboard: Component = () => {
       }
     })
     .then(async (res) => {
-      if (!res.ok) throw new Error("Failed to fetch moods");
+      if (!res.ok) {
+        console.log("Mood fetch failed with status:", res.status);
+        if (res.status === 401) {
+          console.log("Token expired or invalid, clearing storage and redirecting");
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          navigate("/login");
+          return;
+        }
+        throw new Error("Failed to fetch moods");
+      }
       return res.json();
     })
     .then((data) => {
-      const moods = Array.isArray(data) ? data : data.moods || [];
-      setMoodHistory(moods);
-      
-      // Check for today's mood - format as mm-dd-yyyy
-      const today = new Date();
-      const todayFormatted = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}-${today.getFullYear()}`;
-      const todaysMood = moods.find((mood: MoodEntry) => mood.date === todayFormatted);
-      if (todaysMood) {
-        setTodayMood(todaysMood);
-      }
+      if (data) {
+        const moods = Array.isArray(data) ? data : data.moods || [];
+        console.log("Loaded", moods.length, "mood entries");
+        setMoodHistory(moods);
+        
+        // Check for today's mood - format as mm-dd-yyyy
+        const today = new Date();
+        const todayFormatted = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}-${today.getFullYear()}`;
+        const todaysMood = moods.find((mood: MoodEntry) => mood.date === todayFormatted);
+        if (todaysMood) {
+          setTodayMood(todaysMood);
+        }
 
-      // Calculate weekly progress for current week (Monday-Sunday)
-      calculateWeeklyProgress(moods);
+        // Calculate weekly progress for current week (Monday-Sunday)
+        calculateWeeklyProgress(moods);
+      }
     })
-    .catch(() => {
+    .catch((err) => {
+      console.error("Failed to fetch moods:", err);
       setError("Gagal mengambil data mood.");
     });
 
@@ -254,54 +331,143 @@ const Dashboard: Component = () => {
       }
     })
     .then(async (res) => {
-      if (!res.ok) throw new Error("Failed to fetch journals");
+      if (!res.ok) {
+        console.log("Journal fetch failed with status:", res.status);
+        if (res.status === 401) {
+          console.log("Token expired or invalid, clearing storage and redirecting");
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          navigate("/login");
+          return;
+        }
+        throw new Error("Failed to fetch journals");
+      }
       return res.json();
     })
     .then((data) => {
-      const journals = Array.isArray(data) ? data : data.journals || [];
-      setRecentJournals(journals.slice(0, 3)); // Get latest 3 journals
-      
-      // Calculate journal streak
-      calculateJournalStreak(journals);
-      setLoading(false);
+      if (data) {
+        const journals = Array.isArray(data) ? data : data.journals || [];
+        console.log("Loaded", journals.length, "journal entries");
+        setRecentJournals(journals.slice(0, 3)); // Get latest 3 journals
+        
+        // Calculate journal streak
+        calculateJournalStreak(journals);
+        setLoading(false);
+        console.log("All data loaded successfully");
+      }
     })
-    .catch(() => {
+    .catch((err) => {
+      console.error("Failed to fetch journals:", err);
       setError("Gagal mengambil data journal.");
       setLoading(false);
     });
   });
 
-  // Calculate journal writing streak
+  // FIXED: Calculate journal writing streak - only counts journals written for the same day they were created
   const calculateJournalStreak = (journals: JournalEntry[]) => {
     if (journals.length === 0) {
       setJournalStreak(0);
       return;
     }
 
-    // Sort journals by date (newest first)
-    const sortedJournals = journals.sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    console.log("Calculating journal streak for", journals.length, "journals");
+
+    // Helper function to normalize date string to YYYY-MM-DD format
+    const normalizeDateString = (dateStr: string): string => {
+      if (!dateStr) return '';
+      
+      // If it's ISO format (contains T), extract date part
+      if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      
+      // If it's MM-DD-YYYY format, convert to YYYY-MM-DD
+      if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
+        const [mm, dd, yyyy] = dateStr.split('-');
+        return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+      }
+      
+      // If already YYYY-MM-DD format
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateStr;
+      }
+      
+      // Try to parse as date and format
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '';
+        return date.toISOString().split('T')[0];
+      } catch {
+        return '';
+      }
+    };
+
+    // Filter journals that were created on the same date as their intended journal date
+    const validStreakJournals = journals.filter(journal => {
+      const createdAt = new Date(journal.created_at);
+      if (isNaN(createdAt.getTime())) return false;
+      
+      const createdDateStr = createdAt.toISOString().split('T')[0];
+      
+      // If journal has a separate date field, compare it with created_at date
+      if (journal.date) {
+        const journalDateStr = normalizeDateString(journal.date);
+        const isValidStreak = createdDateStr === journalDateStr;
+        console.log(`Journal ${journal.id}: created=${createdDateStr}, journal_date=${journalDateStr}, valid_streak=${isValidStreak}`);
+        return isValidStreak;
+      }
+      
+      // If no separate date field, assume journal was created for that day
+      console.log(`Journal ${journal.id}: created=${createdDateStr}, no separate date field, counting for streak`);
+      return true;
+    });
+
+    console.log("Valid streak journals:", validStreakJournals.length, "out of", journals.length);
+
+    // Group valid journals by their creation date
+    const journalsByCreatedDate = new Set<string>();
+    
+    validStreakJournals.forEach(journal => {
+      const createdDate = new Date(journal.created_at);
+      const dateKey = createdDate.toISOString().split('T')[0];
+      journalsByCreatedDate.add(dateKey);
+      console.log(`Added date ${dateKey} to streak calculation`);
+    });
+
+    console.log("Unique dates with valid journal entries:", Array.from(journalsByCreatedDate));
+
+    if (journalsByCreatedDate.size === 0) {
+      console.log("No valid journal entries found, streak = 0");
+      setJournalStreak(0);
+      return;
+    }
 
     let streak = 0;
-    let currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0);
-
-    for (const journal of sortedJournals) {
-      const journalDate = new Date(journal.created_at);
-      journalDate.setHours(0, 0, 0, 0);
-
-      const diffTime = currentDate.getTime() - journalDate.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === streak || (streak === 0 && diffDays === 0)) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Start from today and count backwards for consecutive days
+    let currentDate = new Date(today);
+    
+    console.log("Starting streak calculation from today:", currentDate.toISOString().split('T')[0]);
+    
+    while (true) {
+      const checkDateString = currentDate.toISOString().split('T')[0];
+      
+      // Check if there was a valid journal entry created on this date
+      if (journalsByCreatedDate.has(checkDateString)) {
         streak++;
+        console.log(`Day ${checkDateString}: Found journal entry, streak = ${streak}`);
+        // Move to previous day
         currentDate.setDate(currentDate.getDate() - 1);
       } else {
+        // No journal entry for this date, streak is broken
+        console.log(`Day ${checkDateString}: No journal entry, streak ends at ${streak}`);
         break;
       }
     }
 
+    console.log("Final streak:", streak);
     setJournalStreak(streak);
   };
 
@@ -499,6 +665,7 @@ const Dashboard: Component = () => {
     const token = localStorage.getItem("token");
     if (!token) {
       setError("Belum login. Silakan login ulang.");
+      navigate("/login");
       return;
     }
 
@@ -522,6 +689,12 @@ const Dashboard: Component = () => {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          navigate("/login");
+          return;
+        }
         const result = await res.json();
         setError(result.message || "You can only submit one mood entry per day.");
         setIsLoadingMood(false);
@@ -631,6 +804,12 @@ const Dashboard: Component = () => {
               How are you feeling today?
             </p>
           </div>
+
+          {new URLSearchParams(location.search).get("welcome") === "1" && (
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+              Welcome to MindMate! Your account has been created successfully.
+            </div>
+          )}
 
           {error() && (
             <div class="flex items-center p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 border border-red-200" role="alert">

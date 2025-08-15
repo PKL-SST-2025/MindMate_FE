@@ -1,7 +1,7 @@
 import { Component, createSignal, createEffect } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 
-const API_URL = "http://127.0.0.1:8080/api/journals";
+const API_URL = "https://mindmate-be-production.up.railway.app/api/journals";
 
 type JournalEntry = {
   id: number;
@@ -111,9 +111,31 @@ const Journal: Component = () => {
     }
   };
 
-  // Edit: navigate to /journal/create with state
   const handleEditJournal = (journal: JournalEntry) => {
-    navigate('/journal/create', { state: { journal } });
+    let dateForEdit = journal.created_at;
+    if (journal.created_at.includes('T')) {
+
+      const dateOnly = journal.created_at.split('T')[0]; 
+      const [yyyy, mm, dd] = dateOnly.split('-');
+
+      dateForEdit = `${mm}-${dd}-${yyyy}`; 
+
+    } else if (journal.created_at.length === 10 && journal.created_at.includes('-')) {
+      
+      const parts = journal.created_at.split('-');
+      if (parts[0].length === 4) {
+        
+        const [yyyy, mm, dd] = parts;
+        dateForEdit = `${mm}-${dd}-${yyyy}`;
+      }
+    }
+    
+    navigate('/journal/create', { 
+      state: { 
+        journal,
+        date: dateForEdit 
+      } 
+    });
   };
 
   return (

@@ -6,8 +6,10 @@ const NavbarLanding: Component = () => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = createSignal(false);
 
+  // Helper function to check if a link is active
   const isActive = (path: string) => location.pathname === path;
 
+  // Handle logo click to navigate to landing page or refresh if already on it
   const handleLogoClick = () => {
     if (location.pathname === "/") {
       window.location.reload();
@@ -82,14 +84,14 @@ const NavbarLanding: Component = () => {
             </li>
             <li>
               <a
-                href="/activity-suggestions"
+                href="/daily-motivation"
                 class={`block py-2 px-3 rounded md:p-0 font-semibold transition-colors ${
-                  isActive('/activity-suggestions')
+                  isActive('/daily-motivation')
                     ? 'text-rose-800 bg-rose-100/50 md:bg-transparent'
                     : 'text-gray-800 hover:text-rose-800 hover:bg-rose-100/50 md:hover:bg-transparent'
                 }`}
               >
-                Activity Suggestions
+                Daily Motivation
               </a>
             </li>
           </ul>
@@ -163,15 +165,15 @@ const NavbarLanding: Component = () => {
             </li>
             <li>
               <a
-                href="/activity-suggestions"
+                href="/daily-motivation"
                 class={`block py-3 px-4 rounded-lg font-semibold transition-all duration-200 ease-in-out transform hover:scale-105 hover:shadow-md ${
-                  isActive('/activity-suggestions')
+                  isActive('/daily-motivation')
                     ? 'text-white bg-rose-800'
                     : 'text-gray-800 hover:text-rose-800 hover:bg-rose-100/50'
                 }`}
                 onClick={() => setIsMenuOpen(false)}
               >
-                Activity Suggestions
+                Daily Motivation
               </a>
             </li>
           </ul>
